@@ -3,6 +3,7 @@ import hub
 import motor
 import runloop
 import color
+import math
 
 leftMotor = hub.port.D
 rightMotor = hub.port.C
@@ -34,6 +35,13 @@ def removeRotations( yaw ):
     while yaw < -180:
         yaw += 360
     return yaw
+
+def radToDeg( rad ):
+    return rad * 180 / math.pi
+
+def degToRad( deg ):
+    return deg * math.pi / 180
+
 
 def getYaw():
     return hub.motion_sensor.tilt_angles()[0] / 10
@@ -121,6 +129,20 @@ async def moveDistance( distanceInCM, targetYaw ):
         await wait( 100 )
     move( 0, 0 )
     hub.light_matrix.clear()
+
+currentX = 0 # in cm, assuming +x is 90 yaw
+currentY = 0 # in cm, assuming +y is 0 yaw
+
+async def moveTo( targetX, targetY, targetYaw ):
+    deltaX = targetX - currentX
+    deltaY = targetY - currentY
+    deltaDistance = ( deltaX ** 2 + deltaY ** 2 ) ** 0.5
+    deltaYaw = 90 - radToDeg( math.atan2( deltaY, deltaX ) )
+    await rotateToYaw( deltaYaw )
+    await moveDistance( deltaDistance, deltaYaw )
+    await rotateToYaw( targetYaw )
+    currentX = targetX
+    currentY = targetY
 
 async def main():
     await start()
