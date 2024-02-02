@@ -8,6 +8,8 @@ import math
 leftMotor = hub.port.D
 rightMotor = hub.port.C
 
+liftMotor = hub.port.B
+
 # small wheels
 wheelDiameterInCM = 5.6 # cm
 wheelCircumferenceInCM = 17.5 # cm
@@ -134,36 +136,62 @@ currentX = 0 # in cm, assuming +x is 90 yaw
 currentY = 0 # in cm, assuming +y is 0 yaw
 
 async def moveTo( targetX, targetY, targetYaw ):
+    global currentX
+    global currentY
     deltaX = targetX - currentX
-    deltaY = targetY - currentY
+    deltaY = currentY - targetY 
     deltaDistance = ( deltaX ** 2 + deltaY ** 2 ) ** 0.5
     deltaYaw = 90 - radToDeg( math.atan2( deltaY, deltaX ) )
     await rotateToYaw( deltaYaw )
     await moveDistance( deltaDistance, deltaYaw )
-    await rotateToYaw( targetYaw )
+
+    if( targetYaw != -1 ):
+        await rotateToYaw( targetYaw )
+
     currentX = targetX
     currentY = targetY
+    hub.light_matrix.show_image(hub.light_matrix.IMAGE_GHOST)
+    await wait( 1000 )
+    hub.light_matrix.clear()
+
+async def moveStraight( deltaDistance ):
+    global currentX
+    global currentY
+    yaw = getYaw()
+    await moveDistance( deltaDistance, yaw )
+    # probably wrong
+    currentX += deltaDistance * math.sin( yaw )
+    currentY += deltaDistance * math.cos( yaw )
+   
+currentLiftHeight = 0
+
+async def resetLiftDown():
+    await motor.run_to_relative_position( liftMotor, -3000, 1000 )
+    motor.reset_relative_position( liftMotor, 0 )
+
+async def liftHeight( targetLiftHeight ):
+    global currentLiftHeight;
+    deltaHeight = targetLiftHeight - currentLiftHeight
+    await motor.run_to_relative_position( liftMotor, deltaHeight, 500 )
+    currentLiftHeight = targetLiftHeight
 
 async def main():
     await start()
+    await resetLiftDown()
     motor.reset_relative_position( leftMotor, 0 )
     motor.reset_relative_position( rightMotor, 0 )
     hub.motion_sensor.reset_yaw( 0 )
     hub.light.color( hub.light.POWER, color.RED )
 
-    for i in range(0,4): 
-        await hub.light_matrix.write(str(i))
-        await wait(1000)
-        await rotateToYaw( i*90 )
-        #await wait( 250 )
-        await moveDistance( 50, i * 90 )
-        await rotateToYaw( i*90 )
-        #await wait( 250 )
-        await moveDistance( -25, i * 90 )
-        await rotateToYaw( i*90 )
-        #await wait( 250 )
+    await moveTo( -55, -38, -1)
+    await liftHeight( 2000 )
 
-    await rotateToYaw( 0 )
+    await moveTo( -65, 32, -1)
+    await liftHeight( 0 )
+    await moveStraight( -30 )
+
     await finish()
 
 runloop.run(main())
+
+
