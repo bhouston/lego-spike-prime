@@ -70,8 +70,6 @@ def getPitch():
 def getRollh():
     return hub.motion_sensor.tilt_angles()[1] / 10
 
-def clamp( value, minimum, maximum ):
-    return min( max( value, minimum ), maximum )
 
 # works, but is a bit slow
 def adaptiveVelocity( deltaPosition, minVelocity=100, maxVelocity=1000 ):
