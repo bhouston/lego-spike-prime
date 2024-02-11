@@ -1,0 +1,24 @@
+
+
+
+    # instantaneousVelocity = sProfileInstantaneousVelocity( currentDistanceViaInstantaneous, totalDistance, maxAcceleration, maxVelocity, minStartVelocity )
+async def testPwm():
+    app.linegraph.show(True)
+    for pwm in range(1000, 10000, 1000):
+        motor.set_duty_cycle( leftMotor, pwm )
+        motor.set_duty_cycle( rightMotor, -pwm )
+        await wait( 1000 )
+        velocity = motor.velocity( leftMotor )
+        app.linegraph.plot( color.BLUE, pwm, int( velocity ) )
+        print( pwm, velocity, velocity / pwm )
+    motor.set_duty_cycle( leftMotor, 0 )
+    motor.set_duty_cycle( rightMotor, 0 )
+
+
+
+
+velocity = -12.12025332 + 0.012073 * pwm
+
+( velocity + 12.12025332 ) = 0.012073 * pwm
+( velocity + 12.12025332 ) / 0.01207307271 = pwm
+
