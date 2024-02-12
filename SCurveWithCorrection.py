@@ -20,6 +20,7 @@ motorDirections = [ -1, 1 ]
 wheelDiameter = 8.8 * 0.01 # meters
 wheelCircumference = 27.6 * 0.01 # meters
 wheelBase = 12.5 * 0.01 # meters
+turnCircumference = wheelBase * math.pi
 
 correctHertz = 1000
 correctPeriod = 1 / correctHertz
@@ -32,7 +33,7 @@ def clamp( value: float, minimum: float, maximum: float ):
 
 async def wait( seconds: float ):
     assert seconds > 0
-    
+
     await runloop.sleep_ms( int( seconds * 1000 ) )
 
 def getLargeMotorPwmForVelocity( velocity: float ):
@@ -45,7 +46,7 @@ def motorsSetDirection( directionName: str ):
     if( directionName == "forward" ):
         motorDirections[ 0 ] = -1
         motorDirections[ 1 ] = 1
-    
+
     elif( directionName == "backward" ):
         motorDirections[ 0 ] = 1
         motorDirections[ 1 ] = -1
@@ -53,7 +54,7 @@ def motorsSetDirection( directionName: str ):
     elif( directionName == "left" ):
         motorDirections[ 0 ] = 1
         motorDirections[ 1 ] = 1
-    
+
     elif( directionName == "right"):
         motorDirections[ 0 ] = -1
         motorDirections[ 1 ] = -1
@@ -62,23 +63,24 @@ def motorsSetDirection( directionName: str ):
         raise Exception( "Unsupported directionName: " + directionName )
 
 def motorSetVelocity( motorIndex: int, velocity: float ):
-    assert motorIndex == 0 or motorIndex == 1
-    assert velocity >= 0
+    #print( "motorIndex", motorIndex, "velocity", velocity)
+    #assert motorIndex == 0 or motorIndex == 1
+    #assert velocity >= 0
 
     port = motorPorts[ motorIndex ]
     direction = motorDirections[ motorIndex ]
     motor.set_duty_cycle( port, int( getLargeMotorPwmForVelocity( velocity ) * direction ) )
 
-def motorGetPosition( motorIndex: int ): 
+def motorGetPosition( motorIndex: int ):
     assert motorIndex == 0 or motorIndex == 1
-    
+
     port = motorPorts[ motorIndex ]
     direction = motorDirections[ motorIndex ]
     return motor.relative_position( port ) * direction
 
 def motorResetPosition( motorIndex: int, position: float ):
     assert motorIndex == 0 or motorIndex == 1
-    
+
     motorPort = motorPorts[ motorIndex ]
     direction = motorDirections[ motorIndex ]
     motor.reset_relative_position( motorPort, int( position * direction ) )
@@ -92,9 +94,6 @@ def sProfileInstantaneousVelocity(x: float, d: float, a: float, v: float, msv: f
     assert v >= 0
     assert msv >= 0
 
-    if( x <= 0):
-        return 0
-    
     # Calculate distance covered during acceleration (or deceleration)
     da = v**2 / (2 * a)
 
@@ -124,27 +123,27 @@ def sProfileInstantaneousVelocity(x: float, d: float, a: float, v: float, msv: f
 
 # TODO:
 # - Read from the gyro and use this to also correct the rotation
-async def move( totalRotations: float, directionName: str = "forward", velocity: float = 50, acceleration: float = 5):
+async def move( totalRotations: float, directionName: str = "forward", velocity: float = 500, acceleration: float = 100):
     assert totalRotations >= 0
 
     motorsSetDirection( directionName )
     motorResetPosition( 0, 0 )
     motorResetPosition( 1, 0 )
-    
+
     remainingRotations = totalRotations
     deltaVelocity = 0
 
     while( remainingRotations > 0 ):
         instantaneousVelocity = sProfileInstantaneousVelocity( clamp( totalRotations - remainingRotations, 0, totalRotations ), totalRotations, acceleration, velocity, 10 )
-
-        motorSetVelocity( 0, instantaneousVelocity + deltaVelocity * 0.5 )
-        motorSetVelocity( 1, instantaneousVelocity - deltaVelocity * 0.5 )
+        
+        motorSetVelocity( 0, clamp( instantaneousVelocity + deltaVelocity * 0.5, 0, 10000 ) )
+        motorSetVelocity( 1, clamp( instantaneousVelocity - deltaVelocity * 0.5, 0, 10000 ) )
 
         await wait( correctPeriod )
 
         leftMotorRotations = motorGetPosition( 0 )
         rightMotorRotations = motorGetPosition( 1 )
-        
+
         deltaVelocity = ( rightMotorRotations - leftMotorRotations )
 
         remainingRotations = clamp( totalRotations - ( rightMotorRotations + leftMotorRotations ) / 2, 0, totalRotations )
@@ -153,28 +152,42 @@ async def move( totalRotations: float, directionName: str = "forward", velocity:
     motorSetVelocity( 1, 0 )
 
 async def moveForward( distance: float ):
-    await move( distance / wheelCircumference, "forward" )
+    await move( distance / wheelCircumference * 360, "forward", 25, 50 )
 
 async def moveBackward( distance: float ):
-    await move( distance / wheelCircumference, "backward" )
+    await move( distance / wheelCircumference * 360, "backward", 25, 50 )
 
 async def turnLeft( degrees: float = 90 ):
-    await move( degrees / 360 * math.pi * wheelBase, "left", 25 )
+    distance = turnCircumference * degrees / 360
+    await move( distance / wheelCircumference * 360, "left", 25, 50 )
 
 async def turnRight( degrees: float = 90 ):
-    await move( degrees / 360 * math.pi * wheelBase, "right", 25 )
+    distance = turnCircumference * degrees / 360 * 0.5
+    await move( distance / wheelCircumference * 360, "right", 25, 50 )
 
 
 async def main():
 
     # sequence of moves to make a square, end up exactly where one started
-    await moveForward( 1 )
+    await moveForward( 0.5 )
+    await wait( 1 )
     await turnRight( 90 )
-    await moveForward( 1 )
+    await wait( 1 )
+    await moveForward( 0.5 )
+    await wait( 1 )
     await turnLeft( 90 )
-    await moveBackward( 1 )
+    await wait( 1 )
+    await moveBackward( 0.5 )
+    await wait( 1 )
     await turnLeft( 90 )
-    await moveForward( 1 )
+    await wait( 1 )
+    await moveForward( 0.5 )
+    await wait( 1 )
     await turnRight( 90 )
 
-runloop.run( main() )
+async def rotationTest():
+    for degrees in range(0,12):
+        await turnLeft( 90 )
+        await wait( 1 )
+
+runloop.run( rotationTest() )
